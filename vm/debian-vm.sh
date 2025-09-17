@@ -6,14 +6,15 @@
 
 source /dev/stdin <<<$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/api.func)
 
+var_version="13"
 function header_info {
   clear
   cat <<"EOF"
-    ____       __    _                ______
-   / __ \___  / /_  (_)___ _____     <  /__ \
-  / / / / _ \/ __ \/ / __ `/ __ \    / /__/ /
- / /_/ /  __/ /_/ / / /_/ / / / /   / // __/
-/_____/\___/_.___/_/\__,_/_/ /_/   /_//____/
+    ____       __    _
+   / __ \___  / /_  (_)___ _____
+  / / / / _ \/ __ \/ / __ `/ __ \
+ / /_/ /  __/ /_/ / / /_/ / / / /
+/_____/\___/_.___/_/\__,_/_/ /_/   $var_version
 
 EOF
 }
@@ -22,9 +23,11 @@ echo -e "\n Loading..."
 GEN_MAC=02:$(openssl rand -hex 5 | awk '{print toupper($0)}' | sed 's/\(..\)/\1:/g; s/.$//')
 RANDOM_UUID="$(cat /proc/sys/kernel/random/uuid)"
 METHOD=""
-NSAPP="debian12vm"
+NSAPP="debian${var_version}vm"
 var_os="debian"
-var_version="12"
+
+DEFAULT_DEBIAN_URL="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-nocloud-amd64.qcow2"
+DEFAULT_DEBIAN_CLOUDINIT_URL="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
 
 YW=$(echo "\033[33m")
 BL=$(echo "\033[36m")
@@ -111,7 +114,7 @@ pushd $TEMP_DIR >/dev/null
 if [ "$AUTO_ACCEPT" == "y" ]; then
   echo -e "${INFO}AUTO_ACCEPT=y detected, proceeding with VM creation."
 else
-  if whiptail --backtitle "Proxmox VE Helper Scripts" --title "Debian 12 VM" --yesno "This will create a New Debian 12 VM. Proceed?" 10 58; then
+  if whiptail --backtitle "Proxmox VE Helper Scripts" --title "Debian $var_version VM" --yesno "This will create a New Debian $var_version VM. Proceed?" 10 58; then
     :
   else
     header_info && echo -e "${CROSS}${RD}User exited script${CL}\n" && exit
@@ -241,7 +244,7 @@ function default_settings() {
   echo -e "${DEFAULT}${BOLD}${DGN}Interface MTU Size: ${BGN}${MTU:-Default}${CL}"
   echo -e "${CLOUD}${BOLD}${DGN}Configure Cloud-init: ${BGN}no${CL}"
   echo -e "${GATEWAY}${BOLD}${DGN}Start VM when completed: ${BGN}${START_VM}${CL}"
-  echo -e "${CREATING}${BOLD}${DGN}Creating a Debian 12 VM using the above default settings${CL}"
+  echo -e "${CREATING}${BOLD}${DGN}Creating a Debian $var_version VM using the above default settings${CL}"
 }
 
 function advanced_settings() {
@@ -432,8 +435,8 @@ function advanced_settings() {
     START_VM="no"
   fi
 
-  if (whiptail --backtitle "Proxmox VE Helper Scripts" --title "ADVANCED SETTINGS COMPLETE" --yesno "Ready to create a Debian 12 VM?" --no-button Do-Over 10 58); then
-    echo -e "${CREATING}${BOLD}${DGN}Creating a Debian 12 VM using the above advanced settings${CL}"
+  if (whiptail --backtitle "Proxmox VE Helper Scripts" --title "ADVANCED SETTINGS COMPLETE" --yesno "Ready to create a Debian $var_version VM?" --no-button Do-Over 10 58); then
+    echo -e "${CREATING}${BOLD}${DGN}Creating a Debian $var_version VM using the above advanced settings${CL}"
   else
     header_info
     echo -e "${ADVANCED}${BOLD}${RD}Using Advanced Settings${CL}"
@@ -496,7 +499,7 @@ else
 fi
 msg_ok "Using ${CL}${BL}$STORAGE${CL} ${GN}for Storage Location."
 msg_ok "Virtual Machine ID is ${CL}${BL}$VMID${CL}."
-msg_info "Retrieving the URL for the Debian 12 Qcow2 Disk Image"
+msg_info "Retrieving the URL for the Debian $var_version Qcow2 Disk Image"
 if [ "$CLOUD_INIT" == "yes" ]; then
   URL=https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
 else
@@ -504,6 +507,24 @@ else
 fi
 sleep 2
 msg_ok "${CL}${BL}${URL}${CL}"
+
+msg_info "Retrieving the URL for the Debian 13 Qcow2 Disk Image"
+if [ "$CLOUD_INIT" == "yes" ]; then
+  if [ -n "$DEBIAN_QCOW2_CLOUDINIT_URL" ]; then
+    URL="$DEBIAN_QCOW2_CLOUDINIT_URL"
+  else
+    URL="$DEFAULT_DEBIAN_CLOUDINIT_URL"
+  fi
+else
+  if [ -n "$DEBIAN_QCOW2_URL" ]; then
+    URL="$DEBIAN_QCOW2_URL"
+  else
+    URL="$DEFAULT_DEBIAN_URL"
+  fi
+fi
+sleep 2
+msg_ok "${CL}${BL}${URL}${CL}"
+
 curl -f#SL -o "$(basename "$URL")" "$URL"
 echo -en "\e[1A\e[0K"
 FILE=$(basename $URL)
@@ -531,7 +552,7 @@ for i in {0,1}; do
   eval DISK${i}_REF=${STORAGE}:${DISK_REF:-}${!disk}
 done
 
-msg_info "Creating a Debian 12 VM"
+msg_info "Creating a Debian 13 VM"
 qm create $VMID -agent 1${MACHINE} -tablet 0 -localtime 1 -bios ovmf${CPU_TYPE} -cores $CORE_COUNT -memory $RAM_SIZE \
   -name $HN -tags community-script -net0 virtio,bridge=$BRG,macaddr=$MAC$VLAN$MTU -onboot 1 -ostype l26 -scsihw virtio-scsi-pci
 pvesm alloc $STORAGE $VMID $DISK0 4M 1>&/dev/null
@@ -589,11 +610,11 @@ else
   qm resize $VMID scsi0 ${DEFAULT_DISK_SIZE} >/dev/null
 fi
 
-msg_ok "Created a Debian 12 VM ${CL}${BL}(${HN})"
+msg_ok "Created a Debian $var_version VM ${CL}${BL}(${HN})"
 if [ "$START_VM" == "yes" ]; then
-  msg_info "Starting Debian 12 VM"
+  msg_info "Starting Debian $var_version VM"
   qm start $VMID
-  msg_ok "Started Debian 12 VM"
+  msg_ok "Started Debian $var_version VM"
 fi
 
 msg_ok "Completed Successfully!\n"
