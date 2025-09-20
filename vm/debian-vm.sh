@@ -525,10 +525,15 @@ fi
 sleep 2
 msg_ok "${CL}${BL}${URL}${CL}"
 
-curl -f#SL -o "$(basename "$URL")" "$URL"
-echo -en "\e[1A\e[0K"
-FILE=$(basename $URL)
-msg_ok "Downloaded ${CL}${BL}${FILE}${CL}"
+FILE=$(basename "$URL")
+FILE_PATH="/tmp/${FILE}"
+if [ ! -f "$FILE_PATH" ]; then
+  curl -f#SL -o "$FILE_PATH" "$URL"
+  echo -en "\e[1A\e[0K"
+  msg_ok "Downloaded ${CL}${BL}${FILE}${CL} to /tmp"
+else
+  msg_ok "Using existing ${CL}${BL}${FILE}${CL} from /tmp"
+fi
 
 STORAGE_TYPE=$(pvesm status -storage $STORAGE | awk 'NR>1 {print $2}')
 case $STORAGE_TYPE in
@@ -556,7 +561,7 @@ msg_info "Creating a Debian 13 VM"
 qm create $VMID -agent 1${MACHINE} -tablet 0 -localtime 1 -bios ovmf${CPU_TYPE} -cores $CORE_COUNT -memory $RAM_SIZE \
   -name $HN -tags community-script -net0 virtio,bridge=$BRG,macaddr=$MAC$VLAN$MTU -onboot 1 -ostype l26 -scsihw virtio-scsi-pci
 pvesm alloc $STORAGE $VMID $DISK0 4M 1>&/dev/null
-qm importdisk $VMID ${FILE} $STORAGE ${DISK_IMPORT:-} 1>&/dev/null
+qm importdisk $VMID ${FILE_PATH} $STORAGE ${DISK_IMPORT:-} 1>&/dev/null
 if [ "$CLOUD_INIT" == "yes" ]; then
   qm set $VMID \
     -efidisk0 ${DISK0_REF}${FORMAT} \
